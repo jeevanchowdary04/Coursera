@@ -1,0 +1,122 @@
+---
+title: "Data Science Capstone Peer-graded Assignment: Milestone Report"
+author: "Jeevan Chowdary"
+date: "21-12-2024"
+output: html_document
+---
+  
+## Introduction
+
+The goal of this capstone project is to create a predictive text model using a large text corpus of documents. This will be achieved through Natural Language Processing (NLP) techniques, focusing on the three datasets: Blogs, News, and Twitter. In this report, I will describe the exploratory analysis of the data and outline the next steps for creating the predictive text algorithm and the Shiny app.
+
+## Data Loading and Summarization
+
+### Loading the Data
+First, we load the data from the three datasets: Blogs, News, and Twitter.
+
+```{r}
+setwd("path/to/data")
+
+# Load the datasets
+blogs <- readLines("en_US.blogs.txt", warn = FALSE, encoding = "UTF-8")
+news <- readLines("en_US.news.txt", warn = FALSE, encoding = "UTF-8")
+twitter <- readLines("en_US.twitter.txt", warn = FALSE, encoding = "UTF-8")
+
+
+library(stringi)
+
+# File sizes
+size_blogs <- file.info("en_US.blogs.txt")$size / 1024^2 # in MB
+size_news <- file.info("en_US.news.txt")$size  / 1024^2 # in MB
+size_twitter <- file.info("en_US.twitter.txt")$size / 1024^2 # in MB
+
+# Number of lines
+len_blogs <- length(blogs)  # 899,288 lines
+len_news <- length(news)    # 1,010,242 lines
+len_twitter <- length(twitter)  # 2,360,148 lines
+
+# Number of characters
+nchar_blogs <- sum(nchar(blogs))
+nchar_news <- sum(nchar(news))
+nchar_twitter <- sum(nchar(twitter))
+
+# Number of words
+nword_blogs <- sum(stri_count_words(blogs))
+nword_news <- sum(stri_count_words(news))
+nword_twitter <- sum(stri_count_words(twitter))
+
+# Create a summary table
+data.frame(file.name = c("blogs", "news", "twitter"),
+           files.size.MB = c(size_blogs, size_news, size_twitter),
+           num.lines = c(len_blogs, len_news, len_twitter),
+           num.character = c(nchar_blogs, nchar_news, nchar_twitter),
+           num.words = c(nword_blogs, nword_news, nword_twitter))
+
+library(tm) # For text mining
+
+# Create a corpus from the sample data
+corpus <- VCorpus(VectorSource(sample_data))
+
+# Preprocess the text
+corpus1 <- tm_map(corpus, removePunctuation)
+corpus2 <- tm_map(corpus1, stripWhitespace)
+corpus3 <- tm_map(corpus2, tolower)
+corpus4 <- tm_map(corpus3, removeNumbers)
+corpus5 <- tm_map(corpus4, PlainTextDocument)
+corpus6 <- tm_map(corpus5, removeWords, stopwords("english"))
+
+
+library(RWeka)
+
+# Define tokenizer functions for unigrams, bigrams, and trigrams
+one <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+two <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+thr <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+
+# Create term-document matrices for unigrams, bigrams, and trigrams
+one_table <- TermDocumentMatrix(corpus6, control = list(tokenize = one))
+two_table <- TermDocumentMatrix(corpus6, control = list(tokenize = two))
+thr_table <- TermDocumentMatrix(corpus6, control = list(tokenize = thr))
+
+# Frequency of terms in each matrix
+one_corpus <- findFreqTerms(one_table, lowfreq = 1000)
+two_corpus <- findFreqTerms(two_table, lowfreq = 80)
+thr_corpus <- findFreqTerms(thr_table, lowfreq = 10)
+
+# Create data frames of word frequencies
+one_corpus_num <- rowSums(as.matrix(one_table[one_corpus, ]))
+one_corpus_table <- data.frame(Word = names(one_corpus_num), frequency = one_corpus_num)
+one_corpus_sort <- one_corpus_table[order(-one_corpus_table$frequency), ]
+
+two_corpus_num <- rowSums(as.matrix(two_table[two_corpus, ]))
+two_corpus_table <- data.frame(Word = names(two_corpus_num), frequency = two_corpus_num)
+two_corpus_sort <- two_corpus_table[order(-two_corpus_table$frequency), ]
+
+thr_corpus_num <- rowSums(as.matrix(thr_table[thr_corpus, ]))
+thr_corpus_table <- data.frame(Word = names(thr_corpus_num), frequency = thr_corpus_num)
+thr_corpus_sort <- thr_corpus_table[order(-thr_corpus_table$frequency), ]
+
+library(ggplot2)
+
+# Unigram frequency plot
+one_g <- ggplot(one_corpus_sort[1:10,], aes(x = reorder(Word, -frequency), y = frequency, fill = frequency)) +
+         geom_bar(stat = "identity") +
+         labs(title = "Unigrams", x = "Words", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 90))
+one_g
+
+# Bigram frequency plot
+two_g <- ggplot(two_corpus_sort[1:10,], aes(x = reorder(Word, -frequency), y = frequency, fill = frequency)) +
+         geom_bar(stat = "identity") +
+         labs(title = "Bigrams", x = "Words", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 90))
+two_g
+
+# Trigram frequency plot
+thr_g <- ggplot(thr_corpus_sort[1:10,], aes(x = reorder(Word, -frequency), y = frequency, fill = frequency)) +
+         geom_bar(stat = "identity") +
+         labs(title = "Trigrams", x = "Words", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 90))
+thr_g
+
+
